@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Menu, TFile, TAbstractFile, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { md5 } from "hash-wasm";
 
 
@@ -38,7 +38,7 @@ export default class FileHashNameChangePlugin extends Plugin
 
 		this.registerEvent(this.app.workspace.on("files-menu", (menu: Menu, abstract_files: TAbstractFile[]) =>
 		{
-			let files: TFile[] = abstract_files.filter(is_file);
+			let files: TFile[] = abstract_files.filter(is_file) as TFile[];
 			if(files.length < 1) return;
 
 			menu.addItem(item => item
@@ -74,7 +74,7 @@ export default class FileHashNameChangePlugin extends Plugin
 
 export class FileHashingConfirmationModal extends Modal
 {
-	constructor(app: App, prefix: string, files_to_hash: int, onConfirm: () => void)
+	constructor(app: App, prefix: string, files_to_hash: number, onConfirm: () => void)
 	{
 		super(app);
 		if(files_to_hash < 1) return;
@@ -93,7 +93,7 @@ export class FileHashingConfirmationModal extends Modal
 export class FileHashNameChangeSettingTab extends PluginSettingTab
 {
 	plugin: FileHashNameChangePlugin;
-	constructor(app: App, plugin: MyPlugin) { super(app, plugin); this.plugin = plugin; }
+	constructor(app: App, plugin: FileHashNameChangePlugin) { super(app, plugin); this.plugin = plugin; }
 
 	display(): void
 	{
@@ -118,29 +118,34 @@ export class FileHashNameChangeSettingTab extends PluginSettingTab
 function lint_prefix(prefix: string): string
 {
 	return prefix
-		.replaceAll("\\", "")
-		.replaceAll("/",  "")
-		.replaceAll(":",  "")
-		.replaceAll("*",  "")
-		.replaceAll("?",  "")
-		.replaceAll("\"", "")
-		.replaceAll("<",  "")
-		.replaceAll(">",  "")
-		.replaceAll("|",  "");
+		.replace("\\", "")
+		.replace("/",  "")
+		.replace(":",  "")
+		.replace("*",  "")
+		.replace("?",  "")
+		.replace("\"", "")
+		.replace("<",  "")
+		.replace(">",  "")
+		.replace("|",  "");
 }
 
-function is_file(abstract_file: TAbstractFile): bool
+function is_file(abstract_file: TAbstractFile): boolean
 {
 	return (abstract_file as TFile).stat !== undefined
 }
 
 /* return true on error */
-async function hash_and_rename_file(app: App, prefix: string, file: TFile): bool
+async function hash_and_rename_file(app: App, prefix: string, file: TFile): Promise<boolean>
 {
 	let file_buffer: ArrayBuffer;
 	let digest: string;
 
-	if(!is_file(file)) return;
+	if(!is_file(file))
+	{
+		console.error(`hash_and_rename_file("${file.basename}"): not a file!`);
+		new Notice(`hash_and_rename_file("${file.basename}"): not a file!`, 0);
+		return true;
+	}
 
 	try
 	{
@@ -173,6 +178,7 @@ async function hash_and_rename_file(app: App, prefix: string, file: TFile): bool
 
 	console.log(`hash_and_rename_file("${file.basename}"): digest ${digest}`);
 
+	// @ts-ignore
 	const new_name = Uint8Array.fromHex(digest).toBase64({ alphabet: "base64url", omitPadding: true })
 	const parent_path = file.parent == null ? "" : (file.parent.parent == null ? "" : `/${file.parent.path}`)
 	const new_path = `${parent_path}/${prefix}${new_name}.${file.extension}`;

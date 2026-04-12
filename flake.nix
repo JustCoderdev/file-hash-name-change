@@ -13,17 +13,16 @@
 		packages = forAllSystems (system:
 			let pkgs = allpkgs.${system}; in
 			{
-				main-js = pkgs.stdenv.mkDerivation
+				main-js = pkgs.buildNpmPackage
 				{
-					name = "main-js";
+					pname = "main-js";
 					inherit version;
-					src = ./.;
 
-					nativeBuildInputs = [ pkgs.nodejs ];
-					buildCommand = ''
-npm install
-npm run build
-mv main.js $out/bin
+					src = ./.;
+					npmDepsHash = "sha256-PkAd9VGO5H5GNU1TVq1IM5Cik4f112PHQQeoMPy5c7E=";
+					postInstall = ''
+mkdir $out/bin
+cp main.js manifest.json $out/bin
 '';
 				};
 			}
