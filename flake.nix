@@ -28,14 +28,6 @@ cp main.js manifest.json $out/bin
 			}
 		);
 
-		# nix run .#<name>
-		apps = forAllSystems(system: {
-			backend = {
-				program = "${self.packages.${system}.backend}/bin/server";
-				type = "app";
-			};
-		});
-
 		# nix develop
 		devShell = forAllSystems(
 			system:
