@@ -12,7 +12,8 @@
 		# nix build .#<name>
 		packages = forAllSystems (system:
 			let pkgs = allpkgs.${system}; in
-			{
+			rec {
+				default = main-js;
 				main-js = pkgs.buildNpmPackage
 				{
 					pname = "main-js";

@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Menu, TFile, TAbstractFile, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Menu, TFile, TAbstractFile, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { md5 } from "hash-wasm";
 
 
@@ -20,6 +20,10 @@ export default class FileHashNameChangePlugin extends Plugin
 	{
 		await this.loadSettings();
 
+
+		/* Rename version */
+		/* ------------------------------------------------------------ */
+
 		this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file: TFile) =>
 		{
 			if(!is_file(file)) return;
@@ -28,10 +32,13 @@ export default class FileHashNameChangePlugin extends Plugin
 				.setTitle(`Hash and rename this file`)
 				.setIcon("pen-line")
 				.onClick(async () =>
-					new FileHashingConfirmationModal(
-						this.app, this.settings.prefix, 1,
-						 () => hash_and_rename_file(this.app, this.settings.prefix, file)
-					).open()
+					{
+						const OPTIONS = { prefix: this.settings.prefix, append: false };
+						new FileHashingConfirmationModal(
+							this.app, 1, OPTIONS,
+							 () => hash_and_rename_file(this.app, file, OPTIONS)
+						).open()
+					}
 				)
 			)
 		}))
@@ -45,16 +52,61 @@ export default class FileHashNameChangePlugin extends Plugin
 				.setTitle(`Hash and rename ${files.length} files`)
 				.setIcon("pen-line")
 				.onClick(async () =>
-					new FileHashingConfirmationModal(
-						this.app, this.settings.prefix, files.length,
-						() =>
-						{
-							Promise.all(files.map(file => hash_and_rename_file(this.app, this.settings.prefix, file)));
-						}
-					).open()
+					{
+						const OPTIONS = { prefix: this.settings.prefix, append: false };
+						new FileHashingConfirmationModal(
+							this.app, files.length, OPTIONS,
+							() => Promise.all(files.map(file => hash_and_rename_file(this.app, file, OPTIONS)))
+						).open()
+					}
 				)
 			)
 		}))
+
+
+		/* Append version */
+		/* ------------------------------------------------------------ */
+
+		this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file: TFile) =>
+		{
+			if(!is_file(file)) return;
+
+			menu.addItem(item => item
+				.setTitle(`Hash file and append it to filename`)
+				.setIcon("pen-line")
+				.onClick(async () =>
+					{
+						const OPTIONS = { prefix: this.settings.prefix, append: true };
+						new FileHashingConfirmationModal(
+							this.app, 1, OPTIONS,
+							 () => hash_and_rename_file(this.app, file, OPTIONS)
+						).open()
+					}
+				)
+			)
+		}))
+
+		this.registerEvent(this.app.workspace.on("files-menu", (menu: Menu, abstract_files: TAbstractFile[]) =>
+		{
+			let files: TFile[] = abstract_files.filter(is_file) as TFile[];
+			if(files.length < 1) return;
+
+			menu.addItem(item => item
+				.setTitle(`Hash ${files.length} files and append them to file name`)
+				.setIcon("pen-line")
+				.onClick(async () =>
+					{
+						const OPTIONS = { prefix: this.settings.prefix, append: true };
+						new FileHashingConfirmationModal(
+							this.app, files.length, OPTIONS,
+							() => Promise.all(files.map(file => hash_and_rename_file(this.app, file, OPTIONS)))
+						).open()
+					}
+				)
+			)
+		}))
+
+		/* ------------------------------------------------------------ */
 
 		this.addSettingTab(new FileHashNameChangeSettingTab(this.app, this));
 	}
@@ -74,14 +126,15 @@ export default class FileHashNameChangePlugin extends Plugin
 
 export class FileHashingConfirmationModal extends Modal
 {
-	constructor(app: App, prefix: string, files_to_hash: number, onConfirm: () => void)
+	constructor(app: App, files_to_hash: number, options: { prefix: string, append: boolean }, onConfirm: () => void)
 	{
 		super(app);
 		if(files_to_hash < 1) return;
 
+		let file_name = `${options.append ? "<filename>" : ""}${options.prefix}<hash>`
 		let label = files_to_hash == 1
-			? `You are going to change this file name to '${prefix}<hash>', are you sure?`
-			: `You are going to change ${files_to_hash} file names to '${prefix}<hash>', are you sure?`;
+			? `You are going to change this file's name to '${file_name}', are you sure?`
+			: `You are going to change ${files_to_hash} file names to '${file_name}', are you sure?`;
 
 		this.setContent(label);
 		new Setting(this.contentEl).addButton(btn => btn
@@ -135,7 +188,7 @@ function is_file(abstract_file: TAbstractFile): boolean
 }
 
 /* return true on error */
-async function hash_and_rename_file(app: App, prefix: string, file: TFile): Promise<boolean>
+async function hash_and_rename_file(app: App, file: TFile, options: { prefix: string, append: boolean }): Promise<boolean>
 {
 	let file_buffer: ArrayBuffer;
 	let digest: string;
@@ -179,9 +232,10 @@ async function hash_and_rename_file(app: App, prefix: string, file: TFile): Prom
 	console.log(`hash_and_rename_file("${file.basename}"): digest ${digest}`);
 
 	// @ts-ignore
-	const new_name = Uint8Array.fromHex(digest).toBase64({ alphabet: "base64url", omitPadding: true })
+	const digest_base64 = Uint8Array.fromHex(digest).toBase64({ alphabet: "base64url", omitPadding: true });
+	const new_name = `${options.append ? file.basename : ""}${options.prefix}${digest_base64}.${file.extension}`;
 	const parent_path = file.parent == null ? "" : (file.parent.parent == null ? "" : `/${file.parent.path}`)
-	const new_path = `${parent_path}/${prefix}${new_name}.${file.extension}`;
+	const new_path = `${parent_path}/${new_name}.${file.extension}`;
 
 	console.log(`hash_and_rename_file("${file.basename}"): renaming to '${new_path}'`);
 
