@@ -1,7 +1,7 @@
 {
 	"id": "file-hash-name-change",
 	"name": "File hash, Name change",
-	"version": "1.0.0",
+	"version": "2026-04-14",
 	"minAppVersion": "0.15.0",
 	"description": "hash file content and append/replace it",
 	"author": "JustCoderdev",

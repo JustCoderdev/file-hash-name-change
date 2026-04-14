@@ -235,7 +235,7 @@ async function hash_and_rename_file(app: App, file: TFile, options: { prefix: st
 	const digest_base64 = Uint8Array.fromHex(digest).toBase64({ alphabet: "base64url", omitPadding: true });
 	const new_name = `${options.append ? file.basename : ""}${options.prefix}${digest_base64}.${file.extension}`;
 	const parent_path = file.parent == null ? "" : (file.parent.parent == null ? "" : `/${file.parent.path}`)
-	const new_path = `${parent_path}/${new_name}.${file.extension}`;
+	const new_path = `${parent_path}/${new_name}`;
 
 	console.log(`hash_and_rename_file("${file.basename}"): renaming to '${new_path}'`);
 
