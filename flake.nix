@@ -36,7 +36,11 @@ cp main.js manifest.json $out/bin
 			pkgs.mkShell
 			{
 				buildInputs = [ pkgs.nodejs ];
-				shellHook = "zsh && exit";
+				shellHook = ''
+npm install
+zsh
+exit
+'';
 			}
 		);
 	};

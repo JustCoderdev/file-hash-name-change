@@ -1,4 +1,4 @@
-import { App, Menu, TFile, TAbstractFile, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Menu, TFile, TAbstractFile, Modal, Notice, Plugin, PluginSettingTab, Setting, MetadataCache } from 'obsidian';
 import { md5 } from "hash-wasm";
 
 
@@ -21,7 +21,7 @@ export default class FileHashNameChangePlugin extends Plugin
 		await this.loadSettings();
 
 
-		/* Rename version */
+		/* Rename hash */
 		/* ------------------------------------------------------------ */
 
 		this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file: TFile) =>
@@ -64,7 +64,7 @@ export default class FileHashNameChangePlugin extends Plugin
 		}))
 
 
-		/* Append version */
+		/* Append hash */
 		/* ------------------------------------------------------------ */
 
 		this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file: TFile) =>
@@ -100,6 +100,30 @@ export default class FileHashNameChangePlugin extends Plugin
 						new FileHashingConfirmationModal(
 							this.app, files.length, OPTIONS,
 							() => Promise.all(files.map(file => hash_and_rename_file(this.app, file, OPTIONS)))
+						).open()
+					}
+				)
+			)
+		}))
+
+
+		/* Append property */
+		/* ------------------------------------------------------------ */
+
+		this.registerEvent(this.app.workspace.on("files-menu", (menu: Menu, abstract_files: TAbstractFile[]) =>
+		{
+			let files: TFile[] = abstract_files.filter(is_file) as TFile[];
+			if(files.length < 1) return;
+
+			menu.addItem(item => item
+				.setTitle(`Append property to ${files.length} files`)
+				.setIcon("pen-line")
+				.onClick(() =>
+					{
+						const OPTIONS = { prefix: this.settings.prefix, append: true };
+						new FilePropertyAppendingModal(
+							this.app, files, OPTIONS,
+							() => new Notice("click")
 						).open()
 					}
 				)
@@ -143,6 +167,66 @@ export class FileHashingConfirmationModal extends Modal
 	}
 }
 
+export class FilePropertyAppendingModal extends Modal
+{
+	async constructor(app: App, files: TFile[], options: { prefix: string, append: boolean }, onConfirm: () => void)
+	{
+		super(app);
+		if(files.length < 1) return;
+
+		MetadataCache.getCache().frontmatter
+
+		let properties: string[] | null = null
+
+		for(let file of files)
+		{
+			let keys: string[];
+
+			await this.app.fileManager.processFrontMatter(file, frontmatter =>
+			{
+				const KEYS = Object.keys(frontmatter);
+				if(properties == null) properties = KEYS;
+				keys = KEYS;
+			})
+
+			if(keys.length < 1)
+			{
+				properties = [];
+				break;
+			}
+			properties = array_intersect(properties as string[], keys);
+		}
+
+		if(properties == null)
+		{
+			console.error("sigh");
+			return
+		}
+
+		console.log("Properties after-processing: ");
+		console.log(properties);
+
+		if(properties.length == 0)
+		{
+			this.setContent(`No common property found among these files`);
+			return
+		}
+
+		this.setContent(`Append property to ${files.length} files`);
+		new Setting(this.contentEl)
+			.addDropdown(dd => dd
+				.addOption("Val1", "Val1")
+				.addOption("Val2", "Val2")
+				.addOption("Val3", "Val3")
+			)
+			.addButton(btn => btn
+				.setButtonText('Confirm')
+				.onClick(() => { this.close(); onConfirm(); })
+			)
+			;
+	}
+}
+
 export class FileHashNameChangeSettingTab extends PluginSettingTab
 {
 	plugin: FileHashNameChangePlugin;
@@ -167,6 +251,12 @@ export class FileHashNameChangeSettingTab extends PluginSettingTab
 
 /* Functions */
 /* ------------------------------------------------------------ */
+
+function array_intersect<T>(lhs: T[], rhs: T[]): T[]
+{
+	if(lhs == null || rhs == null) return [];
+	return lhs.filter(val => rhs.includes(val));
+}
 
 function lint_prefix(prefix: string): string
 {
